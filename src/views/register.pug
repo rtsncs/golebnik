@@ -1,0 +1,11 @@
+extends base.pug
+
+block content
+  form(class='flex flex-col items-center gap-2' method='post' action='/register')
+    div
+      label nazwa:
+        input(class='ml-5 border-x border-y' type='text' name='username')
+    div
+      label hasło:
+        input(class='ml-5 border-x border-y' type='password' name='password')
+    input(class='border-x border-y px-2' type='submit' value='zarejestruj')

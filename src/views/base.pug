@@ -1,12 +1,27 @@
 doctype html
 html
   head
-    title Makao - #{title}
+    title Gołębnik - #{title}
+    meta(charset='UTF-8')
+    meta(name='viewport' content='width=device-width, initial-scale=1')
+    meta(name='Description' content='Gry online')
     link(rel='stylesheet' href='stylesheets/style.css')
     block scripts
   body
-    header
-      p this is a header
+    header(class='py-4 flex justify-between items-center')
+      a(href='/' class='font-bold text-blue-700 text-5xl') GOŁĘBNIK
+      div
+          if user
+            p(class='font-bold') #{user.name}
+            a(href='/logout' class='text-blue-700') wyloguj
+          else
+            a(href='/login' class='text-blue-700') zaloguj
+    h1(class='bg-blue-700 text-white py-2 pl-5 mb-5 text-xl font-bold') #{title}
+
     block content
-    footer
-      p this is a footer
+
+    footer(class='mt-5 text-gray-500 border-gray-300 border-t')
+      div(class='py-4')
+        a(href='/pomoc') pomoc 
+        || 
+        a(href='/kontakt') kontakt

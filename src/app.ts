@@ -4,6 +4,8 @@ import path from 'path';
 import livereload from 'livereload';
 import connectLiveReload from 'connect-livereload';
 import RouteLoader from './routeloader';
+import cookieParser from 'cookie-parser';
+import session from './middleware/session';
 
 dotenv.config();
 
@@ -25,8 +27,12 @@ if (process.env.NODE_ENV !== 'production') {
 app.set('views', path.join(__dirname, '/views'));
 app.set('view engine', 'pug');
 
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 RouteLoader('src/routes/**/*.ts').then((routes) => app.use('/', routes));
+app.use(cookieParser());
+app.use(session);
 
 app.listen(port, () => {
   console.log(`[server]: Server is running at http://localhost:${port}`);
