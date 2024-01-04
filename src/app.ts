@@ -3,13 +3,17 @@ import dotenv from 'dotenv';
 import path from 'path';
 import livereload from 'livereload';
 import connectLiveReload from 'connect-livereload';
-import RouteLoader from './routeloader';
+import RouteLoader from './utils/routeloader';
 import cookieParser from 'cookie-parser';
 import session from './middleware/session';
+import { createServer } from 'http';
+import MakaoServer from './ws/makao';
 
 dotenv.config();
 
 const app: Express = express();
+const server = createServer(app);
+
 const port = process.env.PORT || 3000;
 
 if (process.env.NODE_ENV !== 'production') {
@@ -34,6 +38,18 @@ RouteLoader('src/routes/**/*.ts').then((routes) => app.use('/', routes));
 app.use(cookieParser());
 app.use(session);
 
-app.listen(port, () => {
+const makaoServer = MakaoServer({ noServer: true });
+
+server.on('upgrade', (req, socket, head) => {
+  const url = new URL(req.url || '', `http://${req.headers.host || ''}`);
+
+  if (url.pathname === '/ws/makao') {
+    makaoServer.handleUpgrade(req, socket, head, (ws) => {
+      makaoServer.emit('connection', ws, req);
+    });
+  } else socket.destroy();
+});
+
+server.listen(port, () => {
   console.log(`[server]: Server is running at http://localhost:${port}`);
 });

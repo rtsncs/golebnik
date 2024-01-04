@@ -1,5 +1,6 @@
 import * as argon2 from 'argon2';
-import { query } from '../db';
+import { query } from '../utils/db';
+import jsonwebtoken from 'jsonwebtoken';
 
 export class User {
   id: number;
@@ -59,5 +60,15 @@ export async function getUserById(id: number) {
     );
   } catch (e) {
     console.log(e);
+    return null;
   }
+}
+
+export async function getUserFromToken(token: string) {
+  if (!process.env.AUTH_SECRET) console.log('AUTH_SECRET is not set');
+  const decoded: any = jsonwebtoken.verify(
+    token,
+    process.env.AUTH_SECRET || 'secret',
+  );
+  return await getUserById(decoded.id);
 }

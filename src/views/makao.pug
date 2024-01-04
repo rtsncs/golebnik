@@ -1,0 +1,14 @@
+extends base.pug
+
+block scripts
+  script(src='js/makao.js' defer=true)
+
+block page
+  div(class='w-full h-screen bg-blue-300 px-3 pb-5')
+    div(class='py-2')
+      button(class='bg-white border-x border-y px-2 hover:bg-gray-100') nowy stół
+    div(class='w-full h-full bg-white flex')
+      div(class='basis-3/4 overflow-y-scroll' id='tables')
+        p stoły
+      div(class='basis-1/4 overflow-y-scroll' id='users')
+        p ludzie

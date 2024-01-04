@@ -1,7 +1,7 @@
-extends base.pug
+extends layout.pug
 
 block content
-  form(class='flex flex-col items-center gap-2' method='post' action='/login')
+  form(class='flex flex-col items-center gap-2' method='post' action='/login?callback=' + callback)
     div
       label nazwa:
         input(class='ml-5 border-x border-y' type='text' name='username')
