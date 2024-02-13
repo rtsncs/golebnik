@@ -4,11 +4,23 @@ block scripts
   script(src='js/makao.js' defer=true)
 
 block page
-  div(class='w-full h-screen bg-blue-300 px-3 pb-5')
+  div(class='w-full h-screen bg-blue-300 px-3 pb-5' id='lobby')
     div(class='py-2')
-      button(class='bg-white border-x border-y px-2 hover:bg-gray-100') nowy stół
+      button(class='bg-white border-x border-y px-2 hover:bg-gray-100' id='newTable') nowy stół
     div(class='w-full h-full bg-white flex')
       div(class='basis-3/4 overflow-y-scroll' id='tables')
         p stoły
       div(class='basis-1/4 overflow-y-scroll' id='users')
         p ludzie
+  div(class='w-full h-screen hidden' id='table')
+    div(class='w-full h-full bg-white flex')
+      div(class='basis-3/4 bg-green-700' id='canvas-bg')
+        canvas
+      div(class='basis-1/4 bg-blue-300 p-5')
+        button(class='bg-white border-x border-y px-2 hover:bg-gray-100' id='leaveTable') X
+        div(class='grid grid-cols-2 gap-1 mb-1' id='players')
+          div(class='bg-white p-1') -
+          div(class='bg-white p-1') -
+          div(class='bg-white p-1') -
+          div(class='bg-white p-1') -
+        div(class='bg-white w-full, h-1/2' id='chatbox')
