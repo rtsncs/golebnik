@@ -39,6 +39,7 @@ enum MessageKind {
   TableJoin = 'tableJoin',
   TableLeave = 'tableLeave',
   ReturnToLobby = 'returnToLobby',
+  ChatMessage = 'chatMessage',
 }
 
 class Message {
@@ -132,6 +133,16 @@ export default function MakaoServer(options: ServerOptions) {
             number: table.number,
             name: user.name,
           }).send([...wss.clients]);
+          break;
+        }
+        case 'chatMessage': {
+          const table = connUser.table;
+          if (!table) break;
+
+          new Message(MessageKind.ChatMessage, {
+            user: user.name,
+            content: parsedMsg.data,
+          }).send(table.users.map((u) => u.ws));
           break;
         }
         default:

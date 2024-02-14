@@ -2,6 +2,7 @@ const lobby = document.getElementById('lobby');
 const table = document.getElementById('table');
 const tableList = document.getElementById('tables');
 const userList = document.getElementById('users');
+const chatbox = document.getElementById('chatbox');
 const users = new Map();
 const tables = new Map();
 let currentTable = null;
@@ -29,7 +30,7 @@ class Table {
 
   userJoin(name) {
     this.users.push(name);
-    this.listNode.textContent = this.number + ' ' + this.users;
+    this.listNode.textContent = '#' + this.number + ' ' + this.users;
   }
 
   userLeave(name) {
@@ -96,6 +97,7 @@ socket.addEventListener('message', (e) => {
       for (let i = 0; i < currentTable.users.length; i++) {
         players.children[i].textContent = currentTable.users[i];
       }
+      chatbox.replaceChildren([]);
       const url = new URL(location);
       url.hash = msg.data;
       history.replaceState({}, '', url);
@@ -117,6 +119,9 @@ socket.addEventListener('message', (e) => {
         for (let i = 0; i < players.children.length; i++) {
           players.children[i].textContent = currentTable.users[i] || '-';
         }
+        const el = document.createElement('p');
+        el.textContent = `${msg.data.name} dołączył`;
+        chatbox.appendChild(el);
       }
       break;
     }
@@ -127,8 +132,16 @@ socket.addEventListener('message', (e) => {
         for (let i = 0; i < players.children.length; i++) {
           players.children[i].textContent = currentTable.users[i] || '-';
         }
+        const el = document.createElement('p');
+        el.textContent = `${msg.data.name} odszedł`;
+        chatbox.appendChild(el);
       }
       break;
+    }
+    case 'chatMessage': {
+      const el = document.createElement('p');
+      el.textContent = `${msg.data.user}: ${msg.data.content}`;
+      chatbox.appendChild(el);
     }
     default:
       break;
@@ -141,4 +154,12 @@ document.getElementById('newTable').addEventListener('click', (_e) => {
 
 document.getElementById('leaveTable').addEventListener('click', (_e) => {
   socket.send(JSON.stringify(new Message('leaveTable')));
+});
+
+document.forms['chatform'].addEventListener('submit', (e) => {
+  e.preventDefault();
+  const msg = e.target['message'].value;
+  if (!msg) return;
+  socket.send(JSON.stringify(new Message('chatMessage', msg)));
+  e.target['message'].value = '';
 });

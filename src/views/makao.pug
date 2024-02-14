@@ -23,4 +23,7 @@ block page
           div(class='bg-white p-1') -
           div(class='bg-white p-1') -
           div(class='bg-white p-1') -
-        div(class='bg-white w-full, h-1/2' id='chatbox')
+        div(class='bg-white w-full h-1/2 overflow-y-scroll' id='chatbox')
+        form(class='flex' id='chatform')
+          input(class='border-x border-y flex-grow' type='text' name='message')
+          input(class='border-x border-y px-2 bg-white' type='submit' value='wyślij')
