@@ -21,12 +21,18 @@ class ConnectedUser {
 class Table {
   number: number;
   users: ConnectedUser[];
+  seats: (ConnectedUser | undefined)[];
   constructor(number: number, user: ConnectedUser) {
     this.number = number;
     this.users = [user];
+    this.seats = Array(4).fill(undefined);
   }
   toJSON() {
-    return { number: this.number, users: this.users.map((u) => u.name) };
+    return {
+      number: this.number,
+      users: this.users.map((u) => u.name),
+      seats: this.seats.map((u) => u?.name),
+    };
   }
 }
 
@@ -40,6 +46,8 @@ enum MessageKind {
   TableLeave = 'tableLeave',
   ReturnToLobby = 'returnToLobby',
   ChatMessage = 'chatMessage',
+  TableSeat = 'tableSeat',
+  TableLeaveSeat = 'tableLeaveSeat',
 }
 
 class Message {
@@ -141,6 +149,15 @@ export default function MakaoServer(options: ServerOptions) {
           const table = connUser.table;
           if (!table) break;
 
+          const seatId = table.seats.indexOf(connUser);
+          if (seatId >= 0) {
+            table.seats[seatId] = undefined;
+            new Message(MessageKind.TableLeaveSeat, {
+              number: table.number,
+              seatId,
+            }).send([...wss.clients]);
+          }
+
           table.users.splice(table.users.indexOf(connUser), 1);
           connUser.table = undefined;
           new Message(MessageKind.ReturnToLobby).send(connUser.ws);
@@ -160,6 +177,36 @@ export default function MakaoServer(options: ServerOptions) {
           }).send(table.users.map((u) => u.ws).flat());
           break;
         }
+        case 'tableSeat': {
+          const table = connUser.table;
+          if (!table) break;
+          if (table.seats.indexOf(connUser) >= 0) break;
+
+          const seatId = parsedMsg.data;
+          if (seatId < table.seats.length && !table.seats[seatId]) {
+            table.seats[seatId] = connUser;
+            new Message(MessageKind.TableSeat, {
+              number: table.number,
+              user: user.name,
+              seatId,
+            }).send([...wss.clients]);
+          }
+          break;
+        }
+        case 'tableLeaveSeat': {
+          const table = connUser.table;
+          if (!table) break;
+
+          const seatId = table.seats.indexOf(connUser);
+          if (table.seats[seatId]) {
+            table.seats[seatId] = undefined;
+            new Message(MessageKind.TableLeaveSeat, {
+              number: table.number,
+              seatId,
+            }).send([...wss.clients]);
+          }
+          break;
+        }
         default:
           break;
       }
@@ -173,6 +220,14 @@ export default function MakaoServer(options: ServerOptions) {
         if (connUser.table) {
           const table = connUser.table;
           table.users.splice(table.users.indexOf(connUser), 1);
+          const seatId = table.seats.indexOf(connUser);
+          if (seatId >= 0) {
+            table.seats[seatId] = undefined;
+            new Message(MessageKind.TableLeaveSeat, {
+              number: table.number,
+              seatId,
+            }).send([...wss.clients]);
+          }
           new Message(MessageKind.TableLeave, {
             number: table.number,
             name: user.name,
