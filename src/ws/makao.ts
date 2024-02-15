@@ -4,13 +4,13 @@ import { getUserFromToken } from '../models/user';
 
 class ConnectedUser {
   name: string;
-  ws: WebSocket;
-  table: Table | null;
+  ws: [WebSocket];
+  table: Table | undefined;
+  timeout: NodeJS.Timeout | undefined;
 
   constructor(name: string, ws: WebSocket) {
     this.name = name;
-    this.ws = ws;
-    this.table = null;
+    this.ws = [ws];
   }
 
   toJSON() {
@@ -73,13 +73,28 @@ export default function MakaoServer(options: ServerOptions) {
       ws.close();
       return;
     }
-    const connUser = new ConnectedUser(user.name, ws);
-    users.set(user.name, connUser);
-    new Message(MessageKind.LobbyStatus, {
-      users: [...users.values()],
-      tables: [...tables.values()],
-    }).send([ws]);
-    new Message(MessageKind.UserJoin, user.name).send([...wss.clients], [ws]);
+    let connUser = users.get(user.name)!;
+    if (connUser == undefined) {
+      connUser = new ConnectedUser(user.name, ws);
+      users.set(user.name, connUser);
+      new Message(MessageKind.UserJoin, user.name).send([...wss.clients], [ws]);
+      new Message(MessageKind.LobbyStatus, {
+        users: [...users.values()],
+        tables: [...tables.values()],
+      }).send([ws]);
+    } else {
+      if (connUser.timeout) {
+        clearTimeout(connUser.timeout);
+      }
+      connUser.ws.push(ws);
+      new Message(MessageKind.LobbyStatus, {
+        users: [...users.values()],
+        tables: [...tables.values()],
+      }).send([ws]);
+      if (connUser.table) {
+        new Message(MessageKind.SwitchTable, connUser.table.number).send([ws]);
+      }
+    }
 
     ws.on('message', (msg) => {
       const parsedMsg = JSON.parse(msg.toString());
@@ -104,7 +119,7 @@ export default function MakaoServer(options: ServerOptions) {
           tables.set(number, table);
           connUser.table = table;
           new Message(MessageKind.TableCreated, table).send([...wss.clients]);
-          new Message(MessageKind.SwitchTable, table.number).send([ws]);
+          new Message(MessageKind.SwitchTable, table.number).send(connUser.ws);
           break;
         }
         case 'joinTable': {
@@ -115,7 +130,7 @@ export default function MakaoServer(options: ServerOptions) {
 
           table.users.push(connUser);
           connUser.table = table;
-          new Message(MessageKind.SwitchTable, table.number).send([ws]);
+          new Message(MessageKind.SwitchTable, table.number).send(connUser.ws);
           new Message(MessageKind.TableJoin, {
             number: table.number,
             name: user.name,
@@ -127,8 +142,8 @@ export default function MakaoServer(options: ServerOptions) {
           if (!table) break;
 
           table.users.splice(table.users.indexOf(connUser), 1);
-          connUser.table = null;
-          new Message(MessageKind.ReturnToLobby).send([ws]);
+          connUser.table = undefined;
+          new Message(MessageKind.ReturnToLobby).send(connUser.ws);
           new Message(MessageKind.TableLeave, {
             number: table.number,
             name: user.name,
@@ -142,7 +157,7 @@ export default function MakaoServer(options: ServerOptions) {
           new Message(MessageKind.ChatMessage, {
             user: user.name,
             content: parsedMsg.data,
-          }).send(table.users.map((u) => u.ws));
+          }).send(table.users.map((u) => u.ws).flat());
           break;
         }
         default:
@@ -151,20 +166,25 @@ export default function MakaoServer(options: ServerOptions) {
     });
 
     ws.on('close', () => {
-      if (connUser.table) {
-        const table = connUser.table;
-        table.users.splice(table.users.indexOf(connUser), 1);
-        new Message(MessageKind.TableLeave, {
-          number: table.number,
-          name: user.name,
-        }).send([...wss.clients], [ws]);
-      }
-      users.delete(user.name);
+      connUser.ws.splice(connUser.ws.indexOf(ws), 1);
+      if (connUser.ws.length > 0) return;
 
-      new Message(MessageKind.UserLeave, user.name).send(
-        [...wss.clients],
-        [ws],
-      );
+      connUser.timeout = setTimeout(() => {
+        if (connUser.table) {
+          const table = connUser.table;
+          table.users.splice(table.users.indexOf(connUser), 1);
+          new Message(MessageKind.TableLeave, {
+            number: table.number,
+            name: user.name,
+          }).send([...wss.clients], [ws]);
+        }
+        users.delete(user.name);
+
+        new Message(MessageKind.UserLeave, user.name).send(
+          [...wss.clients],
+          [ws],
+        );
+      }, 5000);
     });
   });
 
