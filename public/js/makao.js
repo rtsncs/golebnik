@@ -5,38 +5,48 @@ const userList = document.getElementById('users');
 const chatbox = document.getElementById('chatbox');
 const users = new Map();
 const tables = new Map();
+let username = undefined;
 let currentTable = null;
 
 const players = document.getElementById('players');
 
-class Message {
-  constructor(kind, data) {
-    this.kind = kind;
-    this.data = data;
-  }
-}
-
 class Table {
-  constructor(number, seats, users) {
-    this.number = number;
+  constructor(id, seats = [], users) {
+    this.id = id;
     this.seats = seats;
     this.users = users;
     this.listNode = document.createElement('p');
-    this.listNode.textContent = '#' + this.number + ' ' + this.users;
+    this.listNode.textContent = '#' + this.id + ' ' + this.seats;
     this.listNode.onclick = (_e) => {
-      socket.send(JSON.stringify(new Message('joinTable', this.number)));
+      socket.send(JSON.stringify({ type: 'joinTable', id: this.id }));
     };
     tableList.appendChild(this.listNode);
   }
 
-  userJoin(name) {
-    this.users.push(name);
-    this.listNode.textContent = '#' + this.number + ' ' + this.users;
+  join(user) {
+    this.users.push(user);
   }
 
-  userLeave(name) {
-    this.users.splice(this.users.indexOf(name), 1);
-    this.listNode.textContent = this.number + ' ' + this.users;
+  leave(user) {
+    this.users.splice(this.users.indexOf(user), 1);
+    const seat = this.seats.indexOf(user);
+    if (seat >= 0) this.stand(seat);
+  }
+
+  sit(user, seat) {
+    this.seats[seat] = user;
+    this.listNode.textContent = '#' + this.id + ' ' + this.seats;
+    if (currentTable != null && this == currentTable) {
+      players.children[seat].textContent = user;
+    }
+  }
+
+  stand(seat) {
+    this.seats[seat] = undefined;
+    this.listNode.textContent = '#' + this.id + ' ' + this.seats;
+    if (currentTable != null && this == currentTable) {
+      players.children[seat].textContent = '-';
+    }
   }
 }
 
@@ -56,108 +66,114 @@ class User {
   }
 }
 
+function switchTable(id) {
+  const url = new URL(location);
+  if (id == 0) {
+    currentTable = undefined;
+    lobby.style.display = 'block';
+    table.style.display = 'none';
+    url.hash = '';
+  } else {
+    currentTable = tables.get(id);
+    lobby.style.display = 'none';
+    table.style.display = 'block';
+    for (let i = 0; i < currentTable.seats.length; i++) {
+      players.children[i].textContent = currentTable.seats[i] || '-';
+    }
+    chatbox.replaceChildren([]);
+    url.hash = id;
+  }
+  history.replaceState({}, '', url);
+}
+
 const socket = new WebSocket(`ws://${window.location.host}/ws/makao`);
 
 socket.addEventListener('message', (e) => {
   console.log('msg from server: ', e.data);
   const msg = JSON.parse(e.data);
-  switch (msg.kind) {
-    case 'lobbyStatus':
-      msg.data.users.forEach((user) => {
+  switch (msg.type) {
+    case 'lobbyState': {
+      username = msg.username;
+      msg.tables.forEach((table) => {
+        tables.set(table.id, new Table(table.id, table.seats, table.users));
+      });
+      msg.users.forEach((user) => {
         users.set(user.name, new User(user.name, user.table));
+        if (user.name === username && user.table) {
+          switchTable(user.table);
+        }
       });
-      msg.data.tables.forEach((table) => {
-        tables.set(
-          table.number,
-          new Table(table.number, table.seats, table.users),
-        );
-      });
-
-      const url = new URL(location);
-      if (url.hash) {
-        const number = parseInt(url.hash.substring(1));
-        socket.send(JSON.stringify(new Message('joinTable', number)));
+      if (!currentTable) {
+        const url = new URL(location);
+        if (url.hash) {
+          const id = parseInt(url.hash.substring(1));
+          socket.send(JSON.stringify({ type: 'joinTable', id }));
+        }
       }
-
       break;
+    }
     case 'lobbyJoin': {
-      users.set(msg.data, new User(msg.data, null));
+      users.set(msg.name, new User(msg.name, null));
       break;
     }
     case 'lobbyLeave': {
-      const user = users.get(msg.data);
+      const user = users.get(msg.name);
       if (user) user.delete();
-      users.delete(msg.data);
+      users.delete(msg.name);
       break;
     }
     case 'tableCreated': {
-      tables.set(
-        msg.data.number,
-        new Table(msg.data.number, msg.data.seats, msg.data.users),
-      );
-      break;
-    }
-    case 'switchTable': {
-      currentTable = tables.get(msg.data);
-      lobby.style.display = 'none';
-      table.style.display = 'block';
-      for (let i = 0; i < currentTable.seats.length; i++) {
-        players.children[i].textContent = currentTable.seats[i] || '-';
+      tables.set(msg.id, new Table(msg.id, msg.seats, msg.users));
+      if (msg.users.includes(username)) {
+        switchTable(msg.id);
       }
-      chatbox.replaceChildren([]);
-      const url = new URL(location);
-      url.hash = msg.data;
-      history.replaceState({}, '', url);
       break;
     }
-    case 'returnToLobby': {
-      currentTable = null;
-      lobby.style.display = 'block';
-      table.style.display = 'none';
-      const url = new URL(location);
-      url.hash = '';
-      history.replaceState({}, '', url);
+    case 'lobbyTable': {
+      switchTable(msg.id);
       break;
     }
     case 'tableJoin': {
-      const table = tables.get(msg.data.number);
-      table.userJoin(msg.data.name);
+      const table = tables.get(msg.id);
+      table.join(msg.user);
+      if (msg.user == username) {
+        switchTable(msg.id);
+      }
       if (currentTable != null && table == currentTable) {
         const el = document.createElement('p');
-        el.textContent = `${msg.data.name} dołączył`;
+        el.textContent = `${msg.user} dołączył`;
         chatbox.appendChild(el);
       }
       break;
     }
     case 'tableLeave': {
-      const table = tables.get(msg.data.number);
-      table.userLeave(msg.data.name);
+      const table = tables.get(msg.id);
+      table.leave(msg.user);
+      if (msg.user == username) {
+        switchTable(0);
+      }
       if (currentTable != null && table == currentTable) {
         const el = document.createElement('p');
-        el.textContent = `${msg.data.name} odszedł`;
+        el.textContent = `${msg.user} odszedł`;
         chatbox.appendChild(el);
       }
       break;
     }
-    case 'chatMessage': {
+    case 'tableChat': {
       const el = document.createElement('p');
-      el.textContent = `${msg.data.user}: ${msg.data.content}`;
+      el.textContent = `${msg.user}: ${msg.content}`;
       chatbox.appendChild(el);
-    }
-    case 'tableSeat': {
-      const table = tables.get(msg.data.number);
-      table.seats[msg.data.seatId] = msg.data.user;
-      if (currentTable != null && table == currentTable) {
-        players.children[msg.data.seatId].textContent = msg.data.user;
-      }
       break;
     }
-    case 'tableLeaveSeat': {
-      const table = tables.get(msg.data.number);
-      table.seats[msg.data.seatId] = undefined;
-      if (currentTable != null && table == currentTable) {
-        players.children[msg.data.seatId].textContent = '-';
-      }
+    case 'tableSit': {
+      const table = tables.get(msg.id);
+      table.sit(msg.user, msg.seat);
+      break;
+    }
+    case 'tableStand': {
+      const table = tables.get(msg.number);
+      table.stand(msg.seat);
+      break;
     }
     default:
       break;
@@ -165,23 +181,23 @@ socket.addEventListener('message', (e) => {
 });
 
 document.getElementById('newTable').addEventListener('click', (_e) => {
-  socket.send(JSON.stringify(new Message('createTable')));
+  socket.send(JSON.stringify({ type: 'createTable' }));
 });
 
 document.getElementById('leaveTable').addEventListener('click', (_e) => {
-  socket.send(JSON.stringify(new Message('leaveTable')));
+  socket.send(JSON.stringify({ type: 'leaveTable' }));
 });
 
 document.forms['chatform'].addEventListener('submit', (e) => {
   e.preventDefault();
   const msg = e.target['message'].value;
   if (!msg) return;
-  socket.send(JSON.stringify(new Message('chatMessage', msg)));
+  socket.send(JSON.stringify({ type: 'tableChat', content: msg }));
   e.target['message'].value = '';
 });
 
 players.childNodes.forEach((n, i) =>
   n.addEventListener('click', (_e) => {
-    socket.send(JSON.stringify(new Message('tableSeat', i)));
+    socket.send(JSON.stringify({ type: 'tableSit', seat: i }));
   }),
 );

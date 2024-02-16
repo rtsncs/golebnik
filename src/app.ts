@@ -7,7 +7,7 @@ import RouteLoader from './utils/routeloader';
 import cookieParser from 'cookie-parser';
 import session from './middleware/session';
 import { createServer } from 'http';
-import MakaoServer from './ws/makao';
+import WSServer from './ws/server';
 
 dotenv.config();
 
@@ -38,7 +38,7 @@ RouteLoader('src/routes/**/*.ts').then((routes) => app.use('/', routes));
 app.use(cookieParser());
 app.use(session);
 
-const makaoServer = MakaoServer({ noServer: true });
+const makaoServer = WSServer({ noServer: true });
 
 server.on('upgrade', (req, socket, head) => {
   const url = new URL(req.url || '', `http://${req.headers.host || ''}`);
