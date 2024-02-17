@@ -3,6 +3,7 @@ export enum Suit {
   Diamonds = 'D',
   Hearts = 'H',
   Spades = 'S',
+  Joker = 'J',
 }
 
 export enum Rank {
@@ -19,6 +20,7 @@ export enum Rank {
   Jack = 'J',
   Queen = 'Q',
   King = 'K',
+  Joker = 'JOKER',
 }
 
 export class Card {
@@ -31,8 +33,29 @@ export class Card {
   }
 
   toJSON() {
-    return this.rank + this.suit;
+    return this.suit + this.rank;
   }
+}
+
+export function fulldeck(jokers: boolean) {
+  const deck = [];
+  for (const rank in Rank) {
+    if (rank == 'Joker') continue;
+    for (const suit in Suit) {
+      if (suit == 'Joker') continue;
+      deck.push(
+        new Card(
+          Suit[suit as keyof typeof Suit],
+          Rank[rank as keyof typeof Rank],
+        ),
+      );
+    }
+  }
+  if (jokers) {
+    deck.push(new Card(Suit.Joker, Rank.Joker));
+    deck.push(new Card(Suit.Joker, Rank.Joker));
+  }
+  return deck;
 }
 
 export function shuffle(array: any[]) {

@@ -143,6 +143,10 @@ export class Lobby {
     if (lobbyUser) {
       lobbyUser.ws.push(ws);
       if (lobbyUser.timeout) clearTimeout(lobbyUser.timeout);
+      if (lobbyUser.table) {
+        const table = this.tables.get(lobbyUser.table);
+        table?.join(lobbyUser, ws);
+      }
     } else {
       lobbyUser = new LobbyUser(user.name, ws);
       this.users.set(user.name, lobbyUser);

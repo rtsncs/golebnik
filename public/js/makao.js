@@ -1,14 +1,11 @@
-const lobby = document.getElementById('lobby');
-const table = document.getElementById('table');
 const tableList = document.getElementById('tables');
 const userList = document.getElementById('users');
 const chatbox = document.getElementById('chatbox');
+const players = document.getElementById('players');
 const users = new Map();
 const tables = new Map();
 let username = undefined;
 let currentTable = null;
-
-const players = document.getElementById('players');
 
 class Table {
   constructor(id, seats = [], users) {
@@ -68,6 +65,8 @@ class User {
 
 function switchTable(id) {
   const url = new URL(location);
+  const lobby = document.getElementById('lobby');
+  const table = document.getElementById('table');
   if (id == 0) {
     currentTable = undefined;
     lobby.style.display = 'block';
@@ -82,10 +81,95 @@ function switchTable(id) {
     }
     chatbox.replaceChildren([]);
     url.hash = id;
+    game.draw();
   }
   history.replaceState({}, '', url);
 }
 
+const offsetsX = {
+  A: 0,
+  2: 3,
+  3: 6,
+  4: 9,
+  5: 12,
+  6: 15,
+  7: 18,
+  8: 21,
+  9: 24,
+  10: 27,
+  J: 30,
+  Q: 33,
+  K: 36,
+  JOKER: 0,
+};
+const offsetsY = {
+  C: 0,
+  H: 3.725,
+  S: 7.45,
+  D: 11.175,
+  J: 15.685,
+};
+
+class Makao {
+  constructor() {
+    this.hand = [];
+    this.turn = 0;
+    this.playedCards = [];
+    this.hands = [];
+    this.ctx = document.getElementsByTagName('canvas').item(0).getContext('2d');
+    this.cards = new Image();
+    this.cards.src = 'cards.svg';
+  }
+
+  drawCard(card, x, y) {
+    const srcWidth = 238;
+    const srcHeight = 333;
+    const offsetX = offsetsX[card.substring(1)] * 96;
+    const offsetY = offsetsY[card[0]] * 96;
+
+    this.ctx.drawImage(
+      this.cards,
+      offsetX,
+      offsetY,
+      srcWidth,
+      srcHeight,
+      x,
+      y,
+      srcWidth * 0.75,
+      srcHeight * 0.75,
+    );
+  }
+
+  draw() {
+    if (!this.cards.complete) {
+      this.cards.addEventListener('load', this.draw);
+      return;
+    }
+    const ctx = this.ctx;
+    ctx.reset();
+    const style = getComputedStyle(ctx.canvas.parentNode);
+    const width = parseInt(style.getPropertyValue('width'));
+    const height = parseInt(style.getPropertyValue('height'));
+    ctx.canvas.width = width;
+    ctx.canvas.height = height;
+    ctx.strokeStyle = '#ff0000';
+    ctx.strokeRect(0, 0, width, height);
+    ctx.font = '16px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`#${currentTable.id}`, 10, 10);
+
+    this.playedCards.forEach((card, i) => {
+      this.drawCard(card, 100 + 30 * i, 100);
+    });
+
+    this.hand.forEach((card, i) => {
+      this.drawCard(card, 100 + 30 * i, 400);
+    });
+  }
+}
+
+const game = new Makao();
 const socket = new WebSocket(`ws://${window.location.host}/ws/makao`);
 
 socket.addEventListener('message', (e) => {
@@ -175,7 +259,16 @@ socket.addEventListener('message', (e) => {
       table.stand(msg.seat);
       break;
     }
+    case 'gameState': {
+      game.playedCards = msg.playedCards;
+      game.hands = msg.hands;
+      game.hand = msg.hand;
+      game.turn = msg.startingPlayer;
+      game.draw();
+      break;
+    }
     default:
+      console.log('unhandled server message', msg);
       break;
   }
 });

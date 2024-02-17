@@ -1,3 +1,4 @@
+import { CardGameClientMessage, Makao } from './games/game';
 import { Lobby, LobbyUser } from './lobby';
 import { WebSocket } from 'ws';
 
@@ -98,6 +99,7 @@ export class Table {
   users: Map<string, LobbyUser>;
   seats: (string | undefined)[] = [];
   lobby: Lobby;
+  game: Makao;
 
   get allSockets() {
     return [...this.users.values()].flatMap((u) => u.ws);
@@ -107,6 +109,7 @@ export class Table {
     this.id = id;
     this.users = new Map([[user.name, user]]);
     this.lobby = lobby;
+    this.game = new Makao(this);
     this.sendMsg(new ServerCreated(id, [user]), ...lobby.allSockets);
   }
 
@@ -117,7 +120,7 @@ export class Table {
     });
   }
 
-  handleMsg(msg: TableClientMessage, user: string) {
+  handleMsg(msg: TableClientMessage | CardGameClientMessage, user: string) {
     switch (msg.type) {
       case 'tableChat': {
         this.sendMsg(new ServerChat(user, msg.content), ...this.allSockets);
@@ -142,14 +145,26 @@ export class Table {
             ...this.lobby.allSockets,
           );
         }
+        break;
+      }
+      default: {
+        this.game.handleMsg(msg, user);
+        break;
       }
     }
   }
 
-  join(user: LobbyUser) {
-    this.users.set(user.name, user);
-    user.table = this.id;
-    this.sendMsg(new ServerJoin(this.id, user.name), ...this.lobby.allSockets);
+  join(user: LobbyUser, ws?: WebSocket) {
+    if (!this.users.has(user.name)) {
+      this.users.set(user.name, user);
+      user.table = this.id;
+      this.sendMsg(
+        new ServerJoin(this.id, user.name),
+        ...this.lobby.allSockets,
+      );
+    }
+    if (ws) this.game.sendState(user.name, ws);
+    else this.game.sendState(user.name, ...user.ws);
   }
 
   leave(user: string) {
