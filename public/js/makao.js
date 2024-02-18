@@ -81,34 +81,36 @@ function switchTable(id) {
     }
     chatbox.replaceChildren([]);
     url.hash = id;
-    game.draw();
+    game.updateSize();
   }
   history.replaceState({}, '', url);
 }
 
 const offsetsX = {
   A: 0,
-  2: 3,
-  3: 6,
-  4: 9,
-  5: 12,
-  6: 15,
-  7: 18,
-  8: 21,
-  9: 24,
-  10: 27,
-  J: 30,
-  Q: 33,
-  K: 36,
+  2: 1,
+  3: 2,
+  4: 3,
+  5: 4,
+  6: 5,
+  7: 6,
+  8: 7,
+  9: 8,
+  10: 9,
+  J: 10,
+  Q: 11,
+  K: 12,
   JOKER: 0,
 };
 const offsetsY = {
   C: 0,
-  H: 3.725,
-  S: 7.45,
-  D: 11.175,
-  J: 15.685,
+  H: 1,
+  S: 2,
+  D: 3,
+  J: 4,
 };
+const cardWidth = 239.178;
+const cardHeight = 333.666;
 
 class Makao {
   constructor() {
@@ -119,24 +121,80 @@ class Makao {
     this.ctx = document.getElementsByTagName('canvas').item(0).getContext('2d');
     this.cards = new Image();
     this.cards.src = 'cards.svg';
+
+    this.updateSize();
+
+    this.ctx.canvas.addEventListener('mouseup', (e) => {
+      console.log(e.button);
+      if (e.button === 1) {
+        socket.send(JSON.stringify({ type: 'drawCard' }));
+        return;
+      }
+
+      const x = e.clientX - this.ctx.canvas.offsetLeft;
+      const y = e.clientY - this.ctx.canvas.offsetTop;
+      const handOffset =
+        this.width / 2 -
+        this.cardGap * ((this.hand.length - 1) / 2) -
+        (cardWidth / 2) * this.cardScale;
+      if (
+        x > handOffset &&
+        x <
+          handOffset +
+            this.cardGap * (this.hand.length - 1) +
+            cardWidth * this.cardScale &&
+        y > this.height - cardHeight * this.cardScale
+      ) {
+        const i = Math.min(
+          Math.floor((x - handOffset) / this.cardGap),
+          this.hand.length - 1,
+        );
+        console.log(this.hand[i]);
+        socket.send(JSON.stringify({ type: 'playCard', card: this.hand[i] }));
+      }
+    });
   }
 
-  drawCard(card, x, y) {
-    const srcWidth = 238;
-    const srcHeight = 333;
-    const offsetX = offsetsX[card.substring(1)] * 96;
-    const offsetY = offsetsY[card[0]] * 96;
+  updateSize() {
+    this.dpr = window.devicePixelRatio;
+    const style = getComputedStyle(this.ctx.canvas.parentNode);
+    this.width = parseInt(style.getPropertyValue('width'));
+    this.height = parseInt(style.getPropertyValue('height'));
+    this.cardScale = Math.min(
+      this.width / 4 / cardHeight,
+      this.height / 4 / cardHeight,
+    );
+    this.cardGap = cardWidth * 0.15 * this.cardScale;
+
+    this.ctx.canvas.width = this.width * this.dpr;
+    this.ctx.canvas.height = this.height * this.dpr;
+
+    this.ctx.scale(this.dpr, this.dpr);
+
+    this.ctx.canvas.style.width = this.width + 'px';
+    this.ctx.canvas.style.height = this.height + 'px';
+
+    if (currentTable) this.draw();
+  }
+
+  drawCard(x, y, card = 'J2') {
+    const offsetX = offsetsX[card.substring(1)] * cardWidth;
+    const offsetY = offsetsY[card[0]] * cardHeight;
 
     this.ctx.drawImage(
       this.cards,
       offsetX,
       offsetY,
-      srcWidth,
-      srcHeight,
-      x,
-      y,
-      srcWidth * 0.75,
-      srcHeight * 0.75,
+      cardWidth,
+      cardHeight,
+      // Math.floor(x - (cardWidth * scale) / 2),
+      // Math.floor(y - (cardHeight * scale) / 2),
+      // Math.floor(cardWidth * scale),
+      // Math.floor(cardHeight * scale),
+      x - (cardWidth * this.cardScale) / 2,
+      y - (cardHeight * this.cardScale) / 2,
+      cardWidth * this.cardScale,
+      cardHeight * this.cardScale,
     );
   }
 
@@ -146,31 +204,65 @@ class Makao {
       return;
     }
     const ctx = this.ctx;
-    ctx.reset();
-    const style = getComputedStyle(ctx.canvas.parentNode);
-    const width = parseInt(style.getPropertyValue('width'));
-    const height = parseInt(style.getPropertyValue('height'));
-    ctx.canvas.width = width;
-    ctx.canvas.height = height;
-    ctx.strokeStyle = '#ff0000';
-    ctx.strokeRect(0, 0, width, height);
-    ctx.font = '16px sans-serif';
+
+    ctx.clearRect(0, 0, this.width, this.height);
+
+    ctx.font = '18px sans-serif';
     ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(`#${currentTable.id}`, 10, 10);
+    ctx.fillText(`#${currentTable.id}`, 0, 0);
 
     this.playedCards.forEach((card, i) => {
-      this.drawCard(card, 100 + 30 * i, 100);
+      this.drawCard(
+        this.width / 2 -
+          this.cardGap * Math.floor(this.playedCards.length / 2) +
+          this.cardGap * i,
+        this.height / 2,
+        card,
+      );
     });
 
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(
+      username,
+      this.width / 2,
+      this.height - cardHeight * this.cardScale,
+    );
     this.hand.forEach((card, i) => {
-      this.drawCard(card, 100 + 30 * i, 400);
+      this.drawCard(
+        this.width / 2 -
+          this.cardGap * ((this.hand.length - 1) / 2) +
+          this.cardGap * i,
+        this.height - (cardHeight / 2) * this.cardScale,
+        card,
+      );
+    });
+
+    const mySeat = currentTable.seats.indexOf(username);
+
+    this.hands.forEach((cardsAmount, i) => {
+      if (i != mySeat) {
+        for (let j = 0; j < cardsAmount; j++) {
+          this.drawCard(
+            this.width / 2 -
+              this.cardGap * ((cardsAmount - 1) / 2) +
+              this.cardGap * j,
+            (cardHeight * this.cardScale) / 2,
+          );
+        }
+      }
     });
   }
 }
 
 const game = new Makao();
 const socket = new WebSocket(`ws://${window.location.host}/ws/makao`);
+
+addEventListener('resize', (_e) => {
+  game.updateSize();
+});
 
 socket.addEventListener('message', (e) => {
   console.log('msg from server: ', e.data);
@@ -279,6 +371,10 @@ document.getElementById('newTable').addEventListener('click', (_e) => {
 
 document.getElementById('leaveTable').addEventListener('click', (_e) => {
   socket.send(JSON.stringify({ type: 'leaveTable' }));
+});
+
+document.getElementById('startGame').addEventListener('click', (_e) => {
+  socket.send(JSON.stringify({ type: 'startGame' }));
 });
 
 document.forms['chatform'].addEventListener('submit', (e) => {

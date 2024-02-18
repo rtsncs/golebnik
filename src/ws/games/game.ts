@@ -1,4 +1,4 @@
-import { Card, Rank, Suit, fulldeck, shuffle } from './cards';
+import { Card, Rank, Suit, cardFromString, fulldeck, shuffle } from './cards';
 import { Table } from '../table';
 import { WebSocket } from 'ws';
 
@@ -14,7 +14,7 @@ interface StartGame {
 
 interface PlayCard {
   readonly type: 'playCard';
-  card: Card;
+  card: string;
 }
 
 interface DrawCard {
@@ -80,9 +80,36 @@ export class Makao implements CardGame {
         break;
       }
       case 'playCard': {
+        if (this.table.seats[this.turn] != user) return;
+        const card = cardFromString(msg.card);
+        let cardI = -1;
+        this.hands[this.turn].forEach((c, i) => {
+          if (c.rank == card.rank && c.suit == card.suit) cardI = i;
+        });
+        if (cardI === -1) return;
+
+        const topCard = this.playedCards[this.playedCards.length - 1];
+
+        if (card.rank == topCard.rank || card.suit == topCard.suit) {
+          this.hands[this.turn].splice(cardI, 1);
+          this.playedCards.push(card);
+          this.turn = (this.turn + 1) % 2;
+          for (const user of this.table.users.keys()) {
+            this.sendState(user);
+          }
+        }
+
         break;
       }
       case 'drawCard': {
+        if (this.table.seats[this.turn] != user) return;
+        //FIXME: check if stock is empty
+        const card = this.stock.pop()!;
+        this.hands[this.turn].push(card);
+        this.turn = (this.turn + 1) % 2;
+        for (const user of this.table.users.keys()) {
+          this.sendState(user);
+        }
         break;
       }
     }

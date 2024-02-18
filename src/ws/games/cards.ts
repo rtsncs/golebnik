@@ -37,6 +37,10 @@ export class Card {
   }
 }
 
+export function cardFromString(string: string) {
+  return new Card(string[0] as Suit, string.substring(1) as Rank);
+}
+
 export function fulldeck(jokers: boolean) {
   const deck = [];
   for (const rank in Rank) {

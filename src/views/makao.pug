@@ -13,11 +13,13 @@ block page
       div(class='basis-1/4 overflow-y-scroll' id='users')
         p ludzie
   div(class='w-full h-screen hidden' id='table')
-    div(class='w-full h-full bg-white flex')
-      div(class='basis-3/4 bg-green-700' id='canvas-bg')
-        canvas
+    div(class='w-full h-full bg-white flex flex-col sm:flex-row')
+      div(class='basis-3/4 bg-green-700 p-5')
+        div(class='w-full h-full')
+            canvas
       div(class='basis-1/4 bg-blue-300 p-5')
         button(class='bg-white border-x border-y px-2 hover:bg-gray-100' id='leaveTable') X
+        button(class='bg-white border-x border-y px-2 hover:bg-gray-100' id='startGame') start
         div(class='grid grid-cols-2 gap-1 mb-1' id='players')
           div(class='bg-white p-1') -
           div(class='bg-white p-1') -
