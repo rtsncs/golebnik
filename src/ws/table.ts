@@ -26,21 +26,21 @@ class ServerCreated implements ServerMessage {
   readonly type = 'tableCreated';
   id: number;
   users: string[];
-  constructor(id: number, users: LobbyUser[]) {
+  operator: string;
+  constructor(id: number, users: LobbyUser[], operator: string) {
     this.id = id;
     this.users = users.map((u) => u.name);
+    this.operator = operator;
   }
 }
 
-// class ServerState implements ServerMessage {
-//   readonly type = 'tableState';
-//   users: string[];
-//   seats: string[];
-//   constructor(users: LobbyUser[], seats: string[]) {
-//     this.users = users.map((u) => u.name);
-//     this.seats = seats;
-//   }
-// }
+class ServerDestroyed implements ServerMessage {
+  readonly type = 'tableDestroyed';
+  id: number;
+  constructor(id: number) {
+    this.id = id;
+  }
+}
 
 class ServerJoin implements ServerMessage {
   readonly type = 'tableJoin';
@@ -94,10 +94,21 @@ class ServerChat implements ServerMessage {
   }
 }
 
+class ServerOperator implements ServerMessage {
+  readonly type = 'tableOperator';
+  id: number;
+  user: string;
+  constructor(id: number, user: string) {
+    this.id = id;
+    this.user = user;
+  }
+}
+
 export class Table {
   id: number;
   users: Map<string, LobbyUser>;
   seats: (string | undefined)[] = [];
+  operator: string;
   lobby: Lobby;
   game: Makao;
 
@@ -108,9 +119,13 @@ export class Table {
   constructor(id: number, user: LobbyUser, lobby: Lobby) {
     this.id = id;
     this.users = new Map([[user.name, user]]);
+    this.operator = user.name;
     this.lobby = lobby;
     this.game = new Makao(this);
-    this.sendMsg(new ServerCreated(id, [user]), ...lobby.allSockets);
+    this.sendMsg(
+      new ServerCreated(id, [user], this.operator),
+      ...lobby.allSockets,
+    );
   }
 
   sendMsg(msg: ServerMessage, ...sockets: WebSocket[]) {
@@ -168,13 +183,29 @@ export class Table {
   }
 
   leave(user: string) {
-    const seat = this.seats.indexOf(user);
-    if (seat >= 0) this.seats[seat] = undefined;
     const tUser = this.users.get(user);
     if (tUser) {
       tUser.table = undefined;
       this.users.delete(user);
       this.sendMsg(new ServerLeave(this.id, user), ...this.lobby.allSockets);
+    }
+
+    if (this.users.size == 0) {
+      this.sendMsg(new ServerDestroyed(this.id), ...this.lobby.allSockets);
+      this.lobby.tables.delete(this.id);
+      return;
+    }
+
+    const seat = this.seats.indexOf(user);
+    if (seat >= 0) this.seats[seat] = undefined;
+
+    if (this.operator == user) {
+      const newOp = this.users.keys().next().value;
+      this.operator = newOp;
+      this.sendMsg(
+        new ServerOperator(this.id, newOp),
+        ...this.lobby.allSockets,
+      );
     }
   }
 }

@@ -8,10 +8,11 @@ let username = undefined;
 let currentTable = null;
 
 class Table {
-  constructor(id, seats = [], users) {
+  constructor(id, seats = [], users, operator) {
     this.id = id;
     this.seats = seats;
     this.users = users;
+    this.operator = operator;
     this.listNode = document.createElement('p');
     this.listNode.textContent = '#' + this.id + ' ' + this.seats;
     this.listNode.onclick = (_e) => {
@@ -44,6 +45,11 @@ class Table {
     if (currentTable != null && this == currentTable) {
       players.children[seat].textContent = '-';
     }
+  }
+
+  destroy() {
+    this.listNode.remove();
+    tables.delete(this.id);
   }
 }
 
@@ -79,6 +85,8 @@ function switchTable(id) {
     for (let i = 0; i < currentTable.seats.length; i++) {
       players.children[i].textContent = currentTable.seats[i] || '-';
     }
+    document.getElementById('tableOp').textContent =
+      `Operator stołu: ${currentTable.operator}`;
     chatbox.replaceChildren([]);
     url.hash = id;
     game.updateSize();
@@ -115,9 +123,10 @@ const cardHeight = 333.666;
 class Makao {
   constructor() {
     this.hand = [];
-    this.turn = 0;
+    this.turn = -1;
     this.playedCards = [];
     this.hands = [];
+    this.toDraw = 0;
     this.ctx = document.getElementsByTagName('canvas').item(0).getContext('2d');
     this.cards = new Image();
     this.cards.src = 'cards.svg';
@@ -125,14 +134,11 @@ class Makao {
     this.updateSize();
 
     this.ctx.canvas.addEventListener('mouseup', (e) => {
-      console.log(e.button);
-      if (e.button === 1) {
-        socket.send(JSON.stringify({ type: 'drawCard' }));
-        return;
-      }
+      if (e.button != 0) return;
 
-      const x = e.clientX - this.ctx.canvas.offsetLeft;
-      const y = e.clientY - this.ctx.canvas.offsetTop;
+      const x = e.offsetX;
+      const y = e.offsetY;
+
       const handOffset =
         this.width / 2 -
         this.cardGap * ((this.hand.length - 1) / 2) -
@@ -149,8 +155,9 @@ class Makao {
           Math.floor((x - handOffset) / this.cardGap),
           this.hand.length - 1,
         );
-        console.log(this.hand[i]);
-        socket.send(JSON.stringify({ type: 'playCard', card: this.hand[i] }));
+        socket.send(
+          JSON.stringify({ type: 'playCard', card: this.hand[i].card }),
+        );
       }
     });
   }
@@ -174,12 +181,19 @@ class Makao {
     this.ctx.canvas.style.width = this.width + 'px';
     this.ctx.canvas.style.height = this.height + 'px';
 
+    const buttonsOffset = this.height - 5 - cardHeight * this.cardScale - 20;
+    document.getElementById('btnBar').style.marginTop = buttonsOffset + 'px';
+
     if (currentTable) this.draw();
   }
 
-  drawCard(x, y, card = 'J2') {
+  drawCard(x, y, card = 'J2', highlight = undefined) {
     const offsetX = offsetsX[card.substring(1)] * cardWidth;
     const offsetY = offsetsY[card[0]] * cardHeight;
+
+    if (highlight === false) {
+      //TODO
+    }
 
     this.ctx.drawImage(
       this.cards,
@@ -212,35 +226,72 @@ class Makao {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(`#${currentTable.id}`, 0, 0);
+    if (this.toDraw > 0) {
+      ctx.fillText(`do wzięcia: ${this.toDraw}`, 0, 18);
+    }
 
     this.playedCards.forEach((card, i) => {
       this.drawCard(
         this.width / 2 -
-          this.cardGap * Math.floor(this.playedCards.length / 2) +
+          this.cardGap * ((this.playedCards.length - 1) / 2) +
           this.cardGap * i,
         this.height / 2,
         card,
       );
     });
 
+    const mySeat = currentTable.seats.indexOf(username);
+    const myTurn = mySeat != -1 && mySeat == this.turn;
+
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
-    ctx.fillText(
-      username,
-      this.width / 2,
-      this.height - cardHeight * this.cardScale,
-    );
-    this.hand.forEach((card, i) => {
+    if (mySeat != -1) {
+      ctx.fillText(
+        (myTurn ? '>' : '') + username + (myTurn ? '<' : ''),
+        this.width / 2,
+        this.height - 46 - cardHeight * this.cardScale,
+      );
+    }
+
+    document.getElementById('passBtn').style.display = 'none';
+    document.getElementById('drawBtn').style.display = 'none';
+
+    if (myTurn) {
+      let text;
+      if (this.hand.filter((c) => c.playable).length > 0) {
+        if (this.repeatingTurn) {
+          text = 'rzucasz albo pas';
+          document.getElementById('passBtn').style.display = 'inline';
+        } else {
+          text = 'rzucasz albo bierzesz';
+          document.getElementById('drawBtn').style.display = 'inline';
+        }
+      } else if (this.repeatingTurn) {
+        text = 'bierzesz albo pas';
+        document.getElementById('drawBtn').style.display = 'inline';
+        document.getElementById('passBtn').style.display = 'inline';
+      } else {
+        text = 'bierzesz';
+        document.getElementById('drawBtn').style.display = 'inline';
+      }
+
+      ctx.fillText(
+        text,
+        this.width / 2,
+        this.height - 28 - cardHeight * this.cardScale,
+      );
+    }
+
+    this.hand.forEach(({ card, playable }, i) => {
       this.drawCard(
         this.width / 2 -
           this.cardGap * ((this.hand.length - 1) / 2) +
           this.cardGap * i,
         this.height - (cardHeight / 2) * this.cardScale,
         card,
+        playable,
       );
     });
-
-    const mySeat = currentTable.seats.indexOf(username);
 
     this.hands.forEach((cardsAmount, i) => {
       if (i != mySeat) {
@@ -271,7 +322,10 @@ socket.addEventListener('message', (e) => {
     case 'lobbyState': {
       username = msg.username;
       msg.tables.forEach((table) => {
-        tables.set(table.id, new Table(table.id, table.seats, table.users));
+        tables.set(
+          table.id,
+          new Table(table.id, table.seats, table.users, table.operator),
+        );
       });
       msg.users.forEach((user) => {
         users.set(user.name, new User(user.name, user.table));
@@ -299,7 +353,7 @@ socket.addEventListener('message', (e) => {
       break;
     }
     case 'tableCreated': {
-      tables.set(msg.id, new Table(msg.id, msg.seats, msg.users));
+      tables.set(msg.id, new Table(msg.id, msg.seats, msg.users, msg.operator));
       if (msg.users.includes(username)) {
         switchTable(msg.id);
       }
@@ -347,15 +401,31 @@ socket.addEventListener('message', (e) => {
       break;
     }
     case 'tableStand': {
-      const table = tables.get(msg.number);
+      const table = tables.get(msg.id);
       table.stand(msg.seat);
+      break;
+    }
+    case 'tableOperator': {
+      const table = tables.get(msg.id);
+      table.operator = msg.user;
+      if (table === currentTable) {
+        document.getElementById('table-op').textContent =
+          `Operator stołu: ${msg.user}`;
+      }
+      break;
+    }
+    case 'tableDestroyed': {
+      const table = tables.get(msg.id);
+      table.destroy();
       break;
     }
     case 'gameState': {
       game.playedCards = msg.playedCards;
       game.hands = msg.hands;
       game.hand = msg.hand;
-      game.turn = msg.startingPlayer;
+      game.turn = msg.turn;
+      game.toDraw = msg.toDraw;
+      game.repeatingTurn = msg.repeatingTurn;
       game.draw();
       break;
     }
@@ -390,3 +460,11 @@ players.childNodes.forEach((n, i) =>
     socket.send(JSON.stringify({ type: 'tableSit', seat: i }));
   }),
 );
+
+document.getElementById('drawBtn').addEventListener('click', (_e) => {
+  socket.send(JSON.stringify({ type: 'drawCard' }));
+});
+
+document.getElementById('passBtn').addEventListener('click', (_e) => {
+  socket.send(JSON.stringify({ type: 'pass' }));
+});

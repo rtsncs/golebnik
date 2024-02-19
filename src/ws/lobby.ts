@@ -35,7 +35,12 @@ class ServerState implements ServerMessage {
       return { name: u.name, table: u.table };
     });
     this.tables = tables.map((t) => {
-      return { id: t.id, seats: t.seats, users: [...t.users.keys()] };
+      return {
+        id: t.id,
+        seats: t.seats,
+        users: [...t.users.keys()],
+        operator: t.operator,
+      };
     });
     this.username = username;
   }
@@ -89,7 +94,7 @@ export class Lobby {
   }
 
   handleMsg(msgString: string, username: string) {
-    console.log(username, msgString);
+    // console.log(username, msgString);
     const msg: ClientMessage = JSON.parse(msgString);
     const user = this.users.get(username);
     if (!user) return;
