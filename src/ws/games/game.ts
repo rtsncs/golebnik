@@ -58,6 +58,8 @@ class ServerState implements ServerMessage {
   demand?: Rank | Suit;
   actions?: string;
   winner: number;
+  blocks: number[];
+  toBlock: number;
   constructor(
     turn: number,
     playedCards: Card[],
@@ -65,6 +67,8 @@ class ServerState implements ServerMessage {
     toDraw: number,
     repeatingTurn: boolean,
     winner: number,
+    blocks: number[],
+    toBlock: number,
     demand?: Rank | Suit,
     hand?: { card: Card; playable?: boolean }[],
     actions?: string,
@@ -78,6 +82,8 @@ class ServerState implements ServerMessage {
     this.demand = demand;
     this.winner = winner;
     this.actions = actions;
+    this.blocks = blocks;
+    this.toBlock = toBlock;
   }
 }
 
@@ -109,10 +115,11 @@ export class Makao implements CardGame {
   demand?: SuitDemand | RankDemand;
   toDraw: number = 0;
   winner: number = -1;
+  blocks: number[] = [];
+  toBlock: number = 0;
 
   constructor(table: Table) {
     this.table = table;
-    this.hands = Array(2).fill([]);
   }
 
   sendMsg(msg: ServerMessage, ...sockets: WebSocket[]) {
@@ -131,6 +138,7 @@ export class Makao implements CardGame {
 
     switch (msg.type) {
       case 'playCard': {
+        if (this.blocks[this.turn] > 0) return;
         const card = cardFromString(msg.card);
         let cardI = -1;
         this.hands[this.turn].forEach((c, i) => {
@@ -153,6 +161,7 @@ export class Makao implements CardGame {
             (card.suit == Suit.Hearts || card.suit == Suit.Spades)
           )
             this.toDraw += 5;
+          else if (card.rank == Rank.Four) this.toBlock++;
 
           if (this.demand) {
             this.demand.turnsLeft--;
@@ -176,8 +185,7 @@ export class Makao implements CardGame {
               card.rank != Rank.Ace &&
               card.rank != Rank.Jack
             ) {
-              this.turn = (this.turn + 1) % 2;
-              this.repeatTurn = false;
+              this.nextPlayer();
             }
           }
 
@@ -189,6 +197,7 @@ export class Makao implements CardGame {
         break;
       }
       case 'drawCard': {
+        if (this.blocks[this.turn] > 0 || this.toBlock > 0) return;
         const card = this.drawCard();
 
         if (this.canPlay(card)) {
@@ -211,24 +220,29 @@ export class Makao implements CardGame {
       }
       case 'pass': {
         if (this.repeatTurn) {
-          this.repeatTurn = false;
           this.demand == undefined;
         } else if (this.drawnCard) {
           for (let i = 0; i < this.toDraw - 1; i++) {
             this.drawCard();
           }
           this.toDraw = 0;
-          this.drawnCard = undefined;
-        } else {
+        } else if (this.toBlock > 0) {
+          this.blocks[this.turn] = this.toBlock;
+          this.toBlock = 0;
+        } else if (this.blocks[this.turn] == 0) {
           return;
+        } else if (this.blocks[this.turn] > 0) {
+          this.blocks[this.turn]--;
         }
-        this.turn = (this.turn + 1) % 2;
+
+        this.nextPlayer();
         for (const user of this.table.users.keys()) {
           this.sendState(user);
         }
         break;
       }
       case 'suit': {
+        if (this.blocks[this.turn] > 0) return;
         if (!this.repeatTurn) return;
         const lastCard = this.playedCards[this.playedCards.length - 1];
         if (lastCard.rank != Rank.Ace) return;
@@ -237,8 +251,7 @@ export class Makao implements CardGame {
         if (!suit) return;
 
         this.demand = { type: 'suit', demand: suit, turnsLeft: 1 };
-        this.repeatTurn = false;
-        this.turn = (this.turn + 1) % 2;
+        this.nextPlayer();
 
         for (const user of this.table.users.keys()) {
           this.sendState(user);
@@ -246,6 +259,7 @@ export class Makao implements CardGame {
         break;
       }
       case 'rank': {
+        if (this.blocks[this.turn] > 0) return;
         if (!this.repeatTurn) return;
         const lastCard = this.playedCards[this.playedCards.length - 1];
         if (lastCard.rank != Rank.Jack) return;
@@ -253,9 +267,8 @@ export class Makao implements CardGame {
         const rank = msg.rank as Rank;
         if (!rank) return;
 
-        this.repeatTurn = false;
-        this.turn = (this.turn + 1) % 2;
         this.demand = { type: 'rank', demand: rank, turnsLeft: 2 };
+        this.nextPlayer();
 
         for (const user of this.table.users.keys()) {
           this.sendState(user);
@@ -271,7 +284,9 @@ export class Makao implements CardGame {
 
     let canPlay;
 
-    if (this.repeatTurn) canPlay = card.rank == lastCard.rank;
+    if (this.blocks[this.turn] > 0) canPlay = false;
+    else if (this.toBlock > 0) canPlay = card.rank == Rank.Four;
+    else if (this.repeatTurn) canPlay = card.rank == lastCard.rank;
     else if (this.demand)
       canPlay =
         (this.demand.type == 'rank' && card.rank == Rank.Jack) ||
@@ -293,6 +308,15 @@ export class Makao implements CardGame {
     return canPlay;
   }
 
+  nextPlayer() {
+    this.drawnCard = undefined;
+    this.repeatTurn = false;
+    this.turn = (this.turn + 1) % 2;
+    if (this.blocks[this.turn] > 0) {
+      this.blocks[this.turn]--;
+    }
+  }
+
   drawCard() {
     if (this.stock.length == 0) this.restock();
     const card = this.stock.pop()!;
@@ -309,7 +333,7 @@ export class Makao implements CardGame {
   }
 
   startGame() {
-    this.hands = [[], [], [], []];
+    this.hands = [[], []];
     this.playedCards = [];
     this.stock = fulldeck(false);
     this.drawnCard = undefined;
@@ -318,6 +342,8 @@ export class Makao implements CardGame {
     this.demand = undefined;
     this.repeatTurn = false;
     this.winner = -1;
+    this.blocks = [0, 0];
+    this.toBlock = 0;
     shuffle(this.stock);
 
     for (let i = 0; i < 5; i++) {
@@ -363,6 +389,8 @@ export class Makao implements CardGame {
       this.toDraw,
       this.repeatTurn,
       this.winner,
+      this.blocks,
+      this.toBlock,
       this.demand?.demand,
     );
     const seat = this.table.seats.indexOf(user.name);
@@ -388,9 +416,9 @@ export class Makao implements CardGame {
           msg.actions = 'rank';
         }
         msg.actions += ',pass';
-      } else {
+      } else if (this.toBlock == 0) {
         msg.actions = 'draw';
-      }
+      } else msg.actions = 'pass';
       if (playable > 0) msg.actions += ',play';
     }
     if (ws) this.sendMsg(msg, ws);

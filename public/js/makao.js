@@ -133,7 +133,8 @@ class Makao {
     this.winner = -1;
     this.actions = undefined;
     this.demand = undefined;
-    this.demand = undefined;
+    this.toBlock = 0;
+    this.blocks = [0, 0];
 
     this.updateSize();
 
@@ -238,6 +239,9 @@ class Makao {
       if (this.demand == 'C') demandText = 'trefl';
       ctx.fillText(`żądanie: ${demandText}`, 0, 18);
     }
+    if (this.toBlock > 0) {
+      ctx.fillText(`do stracenia: ${this.toBlock}`, 0, 18);
+    }
 
     this.playedCards.forEach((card, i) => {
       this.drawCard(
@@ -255,8 +259,12 @@ class Makao {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     if (mySeat != -1) {
+      const blocked = this.blocks[mySeat];
       ctx.fillText(
-        (myTurn ? '>' : '') + username + (myTurn ? '<' : ''),
+        (myTurn ? '>' : '') +
+          username +
+          (blocked ? `[${blocked}]` : '') +
+          (myTurn ? '<' : ''),
         this.width / 2,
         this.height - 5 - cardHeight * this.cardScale,
       );
@@ -311,10 +319,12 @@ class Makao {
       if (i != mySeat) {
         const name = currentTable.seats[i];
         if (name) {
+          const blocked = this.blocks[i];
           ctx.textBaseline = 'top';
           ctx.fillText(
             (this.turn == i ? '>' : '') +
               currentTable.seats[i] +
+              (blocked ? `[${blocked}]` : '') +
               (this.turn == i ? '<' : ''),
             this.width / 2,
             5 + cardHeight * this.cardScale,
@@ -423,11 +433,13 @@ socket.addEventListener('message', (e) => {
     case 'tableSit': {
       const table = tables.get(msg.id);
       table.sit(msg.user, msg.seat);
+      if (table == currentTable) game.draw();
       break;
     }
     case 'tableStand': {
       const table = tables.get(msg.id);
       table.stand(msg.seat);
+      if (table == currentTable) game.draw();
       break;
     }
     case 'tableOperator': {
@@ -461,6 +473,8 @@ socket.addEventListener('message', (e) => {
         game.actions = msg.actions.split(',');
       } else game.actions = undefined;
       game.demand = msg.demand;
+      game.toBlock = msg.toBlock;
+      game.blocks = msg.blocks;
       game.draw();
       break;
     }
