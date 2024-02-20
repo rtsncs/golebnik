@@ -130,6 +130,10 @@ class Makao {
     this.ctx = document.getElementsByTagName('canvas').item(0).getContext('2d');
     this.cards = new Image();
     this.cards.src = 'cards.svg';
+    this.winner = -1;
+    this.actions = undefined;
+    this.demand = undefined;
+    this.demand = undefined;
 
     this.updateSize();
 
@@ -181,9 +185,6 @@ class Makao {
     this.ctx.canvas.style.width = this.width + 'px';
     this.ctx.canvas.style.height = this.height + 'px';
 
-    const buttonsOffset = this.height - 5 - cardHeight * this.cardScale - 20;
-    document.getElementById('btnBar').style.marginTop = buttonsOffset + 'px';
-
     if (currentTable) this.draw();
   }
 
@@ -229,6 +230,14 @@ class Makao {
     if (this.toDraw > 0) {
       ctx.fillText(`do wzięcia: ${this.toDraw}`, 0, 18);
     }
+    if (this.demand) {
+      let demandText = this.demand;
+      if (this.demand == 'H') demandText = 'kier';
+      if (this.demand == 'D') demandText = 'karo';
+      if (this.demand == 'S') demandText = 'pik';
+      if (this.demand == 'C') demandText = 'trefl';
+      ctx.fillText(`żądanie: ${demandText}`, 0, 18);
+    }
 
     this.playedCards.forEach((card, i) => {
       this.drawCard(
@@ -241,7 +250,7 @@ class Makao {
     });
 
     const mySeat = currentTable.seats.indexOf(username);
-    const myTurn = mySeat != -1 && mySeat == this.turn;
+    const myTurn = mySeat != -1 && this.winner == -1 && mySeat == this.turn;
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
@@ -249,34 +258,39 @@ class Makao {
       ctx.fillText(
         (myTurn ? '>' : '') + username + (myTurn ? '<' : ''),
         this.width / 2,
-        this.height - 46 - cardHeight * this.cardScale,
+        this.height - 5 - cardHeight * this.cardScale,
       );
     }
 
     document.getElementById('passBtn').style.display = 'none';
     document.getElementById('drawBtn').style.display = 'none';
+    document.getElementById('pickSuit').style.display = 'none';
+    document.getElementById('pickRank').style.display = 'none';
 
     if (myTurn) {
-      let text;
-      if (this.hand.filter((c) => c.playable).length > 0) {
-        if (this.repeatingTurn) {
-          text = 'rzucasz albo pas';
-          document.getElementById('passBtn').style.display = 'inline';
-        } else {
-          text = 'rzucasz albo bierzesz';
-          document.getElementById('drawBtn').style.display = 'inline';
-        }
-      } else if (this.repeatingTurn) {
-        text = 'bierzesz albo pas';
-        document.getElementById('drawBtn').style.display = 'inline';
-        document.getElementById('passBtn').style.display = 'inline';
-      } else {
-        text = 'bierzesz';
-        document.getElementById('drawBtn').style.display = 'inline';
+      let text = [];
+      if (this.actions.includes('play')) {
+        text.push('rzucasz');
+      }
+      if (this.actions.includes('draw')) {
+        text.push('bierzesz');
+        document.getElementById('drawBtn').style.display = 'block';
+      }
+      if (this.actions.includes('suit')) {
+        text.push('żądasz');
+        document.getElementById('pickSuit').style.display = 'block';
+      }
+      if (this.actions.includes('rank')) {
+        text.push('żądasz');
+        document.getElementById('pickRank').style.display = 'block';
+      }
+      if (this.actions.includes('pass')) {
+        text.push('pasujesz');
+        document.getElementById('passBtn').style.display = 'block';
       }
 
       ctx.fillText(
-        text,
+        text.join(' lub '),
         this.width / 2,
         this.height - 28 - cardHeight * this.cardScale,
       );
@@ -295,6 +309,17 @@ class Makao {
 
     this.hands.forEach((cardsAmount, i) => {
       if (i != mySeat) {
+        const name = currentTable.seats[i];
+        if (name) {
+          ctx.textBaseline = 'top';
+          ctx.fillText(
+            (this.turn == i ? '>' : '') +
+              currentTable.seats[i] +
+              (this.turn == i ? '<' : ''),
+            this.width / 2,
+            5 + cardHeight * this.cardScale,
+          );
+        }
         for (let j = 0; j < cardsAmount; j++) {
           this.drawCard(
             this.width / 2 -
@@ -426,6 +451,16 @@ socket.addEventListener('message', (e) => {
       game.turn = msg.turn;
       game.toDraw = msg.toDraw;
       game.repeatingTurn = msg.repeatingTurn;
+      game.winner = msg.winner;
+      if (msg.winner != -1) {
+        const el = document.createElement('p');
+        el.textContent = `wygrywa ${currentTable.seats[msg.winner]}`;
+        chatbox.appendChild(el);
+      }
+      if (msg.actions) {
+        game.actions = msg.actions.split(',');
+      } else game.actions = undefined;
+      game.demand = msg.demand;
       game.draw();
       break;
     }
@@ -468,3 +503,26 @@ document.getElementById('drawBtn').addEventListener('click', (_e) => {
 document.getElementById('passBtn').addEventListener('click', (_e) => {
   socket.send(JSON.stringify({ type: 'pass' }));
 });
+
+document.getElementById('pickH').addEventListener('click', (_e) => {
+  socket.send(JSON.stringify({ type: 'suit', suit: 'H' }));
+});
+document.getElementById('pickD').addEventListener('click', (_e) => {
+  socket.send(JSON.stringify({ type: 'suit', suit: 'D' }));
+});
+document.getElementById('pickS').addEventListener('click', (_e) => {
+  socket.send(JSON.stringify({ type: 'suit', suit: 'S' }));
+});
+document.getElementById('pickC').addEventListener('click', (_e) => {
+  socket.send(JSON.stringify({ type: 'suit', suit: 'C' }));
+});
+
+{
+  const buttons = document.getElementsByClassName('pickBtn');
+  for (let i = 0; i < buttons.length; i++) {
+    const button = buttons[i];
+    button.addEventListener('click', (_e) => {
+      socket.send(JSON.stringify({ type: 'rank', rank: button.textContent }));
+    });
+  }
+}

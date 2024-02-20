@@ -13,14 +13,29 @@ block page
       div(class='basis-1/4 overflow-y-scroll' id='users')
         p ludzie
   div(class='w-full h-screen hidden' id='table')
-    div(class='w-full h-full bg-white flex flex-col sm:flex-row')
-      div(class='basis-3/4 bg-green-700 p-5')
+    div(class='w-full h-full bg-white flex flex-col md:flex-row')
+      div(class='flex flex-col basis-3/4 bg-green-700 p-5')
         div(class='w-full h-full relative text-white')
           canvas
-          div(class='absolute left-0 top-0 size-full pointer-events-none')
-            div(class='flex gap-4 justify-center' id='btnBar')
-              button(class='hidden border-x border-y px-2 pointer-events-auto' id='drawBtn') bierz
-              button(class='hidden border-x border-y px-2 pointer-events-auto' id='passBtn') pas
+          div(class='absolute left-0 right-0 top-0 size-full pointer-events-none')
+            div(class='hidden mx-auto w-fit bg-white text-black' id='pickSuit')
+              p(class='text-center w-full') Wybierz kolor
+              button(class='border-x border-y px-2 pointer-events-auto' id='pickH') kier
+              button(class='border-x border-y px-2 pointer-events-auto' id='pickD') karo
+              button(class='border-x border-y px-2 pointer-events-auto' id='pickS') pik
+              button(class='border-x border-y px-2 pointer-events-auto' id='pickC') trefl
+            div(class='hidden mx-auto w-fit bg-white text-black' id='pickRank')
+              p(class='text-center w-full') Wybierz wartość
+              button(class='border-x border-y px-2 pointer-events-auto pickBtn') 5
+              button(class='border-x border-y px-2 pointer-events-auto pickBtn') 6
+              button(class='border-x border-y px-2 pointer-events-auto pickBtn') 7
+              button(class='border-x border-y px-2 pointer-events-auto pickBtn') 8
+              button(class='border-x border-y px-2 pointer-events-auto pickBtn') 9
+              button(class='border-x border-y px-2 pointer-events-auto pickBtn') 10
+              button(class='border-x border-y px-2 pointer-events-auto pickBtn') Q
+        div(class='flex gap-4 justify-center py-5 text-white' id='btnBar')
+          button(class='hidden border-x border-y px-2 pointer-events-auto' id='drawBtn') bierz
+          button(class='hidden border-x border-y px-2 pointer-events-auto' id='passBtn') pas
       div(class='basis-1/4 bg-blue-300 p-5')
         button(class='bg-white border-x border-y px-2 hover:bg-gray-100' id='leaveTable') X
         button(class='bg-white border-x border-y px-2 hover:bg-gray-100' id='startGame') start

@@ -7,7 +7,7 @@ body {
     background-color: #fff;
     color: #000;
 
-    @apply px-3 sm:px-14 lg:px-32;
+    /* @apply px-3 sm:px-14 lg:px-32; */
     @apply max-w-screen-2xl;
     @apply mx-auto;
 }

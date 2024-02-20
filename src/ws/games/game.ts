@@ -25,7 +25,23 @@ interface Pass {
   readonly type: 'pass';
 }
 
-export type CardGameClientMessage = StartGame | PlayCard | DrawCard | Pass;
+interface SuitMsg {
+  readonly type: 'suit';
+  suit: string;
+}
+
+interface RankMsg {
+  readonly type: 'rank';
+  rank: string;
+}
+
+export type CardGameClientMessage =
+  | StartGame
+  | PlayCard
+  | DrawCard
+  | Pass
+  | SuitMsg
+  | RankMsg;
 
 interface ServerMessage {
   readonly type: string;
@@ -39,15 +55,19 @@ class ServerState implements ServerMessage {
   hand?: { card: Card; playable?: boolean }[];
   toDraw: number;
   repeatingTurn: boolean;
-  demand?: Demand;
+  demand?: Rank | Suit;
+  actions?: string;
+  winner: number;
   constructor(
     turn: number,
     playedCards: Card[],
     hands: Card[][],
     toDraw: number,
     repeatingTurn: boolean,
-    demand?: Demand,
+    winner: number,
+    demand?: Rank | Suit,
     hand?: { card: Card; playable?: boolean }[],
+    actions?: string,
   ) {
     this.turn = turn;
     this.playedCards = playedCards;
@@ -56,6 +76,8 @@ class ServerState implements ServerMessage {
     this.toDraw = toDraw;
     this.repeatingTurn = repeatingTurn;
     this.demand = demand;
+    this.winner = winner;
+    this.actions = actions;
   }
 }
 
@@ -65,9 +87,14 @@ interface CardGame extends Game {
   playedCards: Card[];
 }
 
-interface Demand {
-  suit?: Suit;
-  rank?: Rank;
+interface SuitDemand {
+  readonly type: 'suit';
+  demand: Suit;
+  turnsLeft: number;
+}
+interface RankDemand {
+  readonly type: 'rank';
+  demand: Rank;
   turnsLeft: number;
 }
 
@@ -79,13 +106,13 @@ export class Makao implements CardGame {
   playedCards: Card[] = [];
   drawnCard?: Card;
   repeatTurn: boolean = false;
-  suitDemand?: Suit;
-  rankDemand?: Rank;
+  demand?: SuitDemand | RankDemand;
   toDraw: number = 0;
+  winner: number = -1;
 
   constructor(table: Table) {
     this.table = table;
-    this.hands = Array(4).fill([]);
+    this.hands = Array(2).fill([]);
   }
 
   sendMsg(msg: ServerMessage, ...sockets: WebSocket[]) {
@@ -96,13 +123,14 @@ export class Makao implements CardGame {
   }
 
   handleMsg(msg: CardGameClientMessage, user: string) {
+    if (msg.type == 'startGame') {
+      if (this.table.operator == user) this.startGame();
+      return;
+    }
+    if (this.winner != -1 || this.table.seats[this.turn] != user) return;
+
     switch (msg.type) {
-      case 'startGame': {
-        this.startGame();
-        break;
-      }
       case 'playCard': {
-        if (this.table.seats[this.turn] != user) return;
         const card = cardFromString(msg.card);
         let cardI = -1;
         this.hands[this.turn].forEach((c, i) => {
@@ -126,18 +154,31 @@ export class Makao implements CardGame {
           )
             this.toDraw += 5;
 
-          this.repeatTurn = true;
-          let canPlayAgain = false;
-          for (const card of this.hands[this.turn]) {
-            if (this.canPlay(card)) {
-              canPlayAgain = true;
-              break;
-            }
+          if (this.demand) {
+            this.demand.turnsLeft--;
+            if (this.demand.turnsLeft <= 0) this.demand = undefined;
           }
 
-          if (!canPlayAgain) {
-            this.turn = (this.turn + 1) % 2;
-            this.repeatTurn = false;
+          if (this.hands[this.turn].length == 0) {
+            this.winner = this.turn;
+          } else {
+            this.repeatTurn = true;
+            let canPlayAgain = false;
+            for (const card of this.hands[this.turn]) {
+              if (this.canPlay(card)) {
+                canPlayAgain = true;
+                break;
+              }
+            }
+
+            if (
+              !canPlayAgain &&
+              card.rank != Rank.Ace &&
+              card.rank != Rank.Jack
+            ) {
+              this.turn = (this.turn + 1) % 2;
+              this.repeatTurn = false;
+            }
           }
 
           for (const user of this.table.users.keys()) {
@@ -148,7 +189,6 @@ export class Makao implements CardGame {
         break;
       }
       case 'drawCard': {
-        if (this.table.seats[this.turn] != user) return;
         const card = this.drawCard();
 
         if (this.canPlay(card)) {
@@ -158,6 +198,9 @@ export class Makao implements CardGame {
             this.drawCard();
           }
           this.toDraw = 0;
+          if (this.demand?.type == 'rank') {
+            this.demand.turnsLeft--;
+          }
           this.turn = (this.turn + 1) % 2;
         }
 
@@ -167,10 +210,9 @@ export class Makao implements CardGame {
         break;
       }
       case 'pass': {
-        if (this.table.seats[this.turn] != user) return;
-
         if (this.repeatTurn) {
           this.repeatTurn = false;
+          this.demand == undefined;
         } else if (this.drawnCard) {
           for (let i = 0; i < this.toDraw - 1; i++) {
             this.drawCard();
@@ -186,6 +228,41 @@ export class Makao implements CardGame {
         }
         break;
       }
+      case 'suit': {
+        if (!this.repeatTurn) return;
+        const lastCard = this.playedCards[this.playedCards.length - 1];
+        if (lastCard.rank != Rank.Ace) return;
+
+        const suit = msg.suit as Suit;
+        if (!suit) return;
+
+        this.demand = { type: 'suit', demand: suit, turnsLeft: 1 };
+        this.repeatTurn = false;
+        this.turn = (this.turn + 1) % 2;
+
+        for (const user of this.table.users.keys()) {
+          this.sendState(user);
+        }
+        break;
+      }
+      case 'rank': {
+        if (!this.repeatTurn) return;
+        const lastCard = this.playedCards[this.playedCards.length - 1];
+        if (lastCard.rank != Rank.Jack) return;
+
+        const rank = msg.rank as Rank;
+        if (!rank) return;
+
+        this.repeatTurn = false;
+        this.turn = (this.turn + 1) % 2;
+        this.demand = { type: 'rank', demand: rank, turnsLeft: 2 };
+
+        for (const user of this.table.users.keys()) {
+          this.sendState(user);
+        }
+
+        break;
+      }
     }
   }
 
@@ -195,8 +272,12 @@ export class Makao implements CardGame {
     let canPlay;
 
     if (this.repeatTurn) canPlay = card.rank == lastCard.rank;
-    else if (this.rankDemand) canPlay = card.rank == this.rankDemand;
-    else if (this.suitDemand) canPlay = card.suit == this.suitDemand;
+    else if (this.demand)
+      canPlay =
+        (this.demand.type == 'rank' && card.rank == Rank.Jack) ||
+        (this.demand.type == 'suit' && card.rank == Rank.Ace) ||
+        card.rank === this.demand.demand ||
+        card.suit === this.demand.demand;
     else if (
       this.toDraw > 0 &&
       card.rank != Rank.Two &&
@@ -230,13 +311,13 @@ export class Makao implements CardGame {
   startGame() {
     this.hands = [[], [], [], []];
     this.playedCards = [];
-    this.stock = fulldeck(true);
+    this.stock = fulldeck(false);
     this.drawnCard = undefined;
     this.turn = 0;
     this.toDraw = 0;
-    this.suitDemand = undefined;
-    this.rankDemand = undefined;
+    this.demand = undefined;
     this.repeatTurn = false;
+    this.winner = -1;
     shuffle(this.stock);
 
     for (let i = 0; i < 5; i++) {
@@ -250,9 +331,16 @@ export class Makao implements CardGame {
     while (this.playedCards.length == 0) {
       const card = this.stock.pop()!;
       if (
-        card.rank in
-          [Rank.Ace, Rank.Two, Rank.Three, Rank.Four, Rank.Jack, Rank.Joker] ||
-        (card.rank === Rank.King && card.suit in [Suit.Spades, Suit.Hearts])
+        [
+          Rank.Ace,
+          Rank.Two,
+          Rank.Three,
+          Rank.Four,
+          Rank.Jack,
+          Rank.Joker,
+        ].includes(card.rank) ||
+        (card.rank === Rank.King &&
+          [Suit.Spades, Suit.Hearts].includes(card.suit))
       ) {
         this.stock.unshift(card);
       } else {
@@ -274,16 +362,36 @@ export class Makao implements CardGame {
       this.hands,
       this.toDraw,
       this.repeatTurn,
+      this.winner,
+      this.demand?.demand,
     );
     const seat = this.table.seats.indexOf(user.name);
     if (seat >= 0) {
+      let playable = 0;
       msg.hand = this.hands[seat].map((c) => {
-        const o: { card: Card; playable?: boolean } = { card: c };
+        const o: { card: Card; playable?: boolean } = {
+          card: c,
+        };
         if (this.turn == seat) {
           o.playable = this.canPlay(c);
+          if (o.playable) playable++;
         }
         return o;
       });
+      if (this.drawnCard) msg.actions = 'play,pass';
+      else if (this.repeatTurn) {
+        const lastCard = this.playedCards[this.playedCards.length - 1];
+        if (lastCard.rank == Rank.Ace) {
+          msg.actions = 'suit';
+        }
+        if (lastCard.rank == Rank.Jack) {
+          msg.actions = 'rank';
+        }
+        msg.actions += ',pass';
+      } else {
+        msg.actions = 'draw';
+      }
+      if (playable > 0) msg.actions += ',play';
     }
     if (ws) this.sendMsg(msg, ws);
     else this.sendMsg(msg, ...user.ws);
