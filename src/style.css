@@ -30,3 +30,7 @@ button, input[type=submit], .button {
 input[type=text], input[type=password] {
     @apply bg-white border-x border-y px-2;
 }
+
+.game-link {
+    @apply underline text-blue-700 text-xl;
+}

@@ -107,7 +107,7 @@ interface RankDemand {
 export class Makao implements CardGame {
   table: Table;
   turn: number = -1;
-  hands: Card[][] = [];
+  hands: Card[][] = [[], []];
   stock: Card[] = [];
   playedCards: Card[] = [];
   drawnCard?: Card;
@@ -131,8 +131,8 @@ export class Makao implements CardGame {
 
   handleMsg(msg: CardGameClientMessage, user: string) {
     if (msg.type == 'startGame') {
-      if (this.table.operator == user) this.startGame();
-      return;
+      // if (this.table.operator == user) this.startGame();
+      if (this.table.seats[0] && this.table.seats[1]) this.startGame();
     }
     if (this.winner != -1 || this.table.seats[this.turn] != user) return;
 
@@ -420,6 +420,7 @@ export class Makao implements CardGame {
         msg.actions = 'draw';
       } else msg.actions = 'pass';
       if (playable > 0) msg.actions += ',play';
+      if (this.blocks[this.turn] > 0) msg.actions = 'pass';
     }
     if (ws) this.sendMsg(msg, ws);
     else this.sendMsg(msg, ...user.ws);

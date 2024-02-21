@@ -19,7 +19,7 @@ export default function (router: Router) {
     const formData: LoginForm = req.body;
     const user = await getUser(formData.username);
     if (!user || !(await user.verifyPassword(formData.password)))
-      res.sendStatus(400);
+      res.sendStatus(401);
     else {
       if (!process.env.AUTH_SECRET) console.log('AUTH_SECRET is not set');
       const token = sign({ id: user.id }, process.env.AUTH_SECRET || 'secret');

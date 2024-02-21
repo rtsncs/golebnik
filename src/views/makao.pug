@@ -7,11 +7,10 @@ block page
   div(class='w-full h-screen bg-blue-300 px-3 pb-5' id='lobby')
     div(class='py-2')
       button(id='newTable') nowy stół
+      a(href='/' class='mx-2 inline-block button') wyjdź
     div(class='w-full h-full bg-white flex')
       div(class='basis-3/4 overflow-y-scroll' id='tables')
-        p stoły
       div(class='basis-1/4 overflow-y-scroll' id='users')
-        p ludzie
   div(class='w-full h-screen hidden' id='table')
     div(class='w-full h-full bg-white flex flex-col md:flex-row')
       div(class='flex flex-col basis-3/4 bg-green-700 p-5')
@@ -37,15 +36,15 @@ block page
           button(class='hidden canvas-button' id='drawBtn') bierz
           button(class='hidden canvas-button' id='passBtn') pas
       div(class='basis-1/4 bg-blue-300 p-5')
-        button(class='bg-white border-x border-y px-2 hover:bg-gray-100' id='leaveTable') X
-        button(class='bg-white border-x border-y px-2 hover:bg-gray-100' id='startGame') start
+        button(id='startGame') start
+        button(class='mx-2' id='leaveTable') wyjdź
         div(class='grid grid-cols-2 gap-1 mb-1' id='players')
           div(class='bg-white p-1') -
           div(class='bg-white p-1') -
           //- div(class='bg-white p-1') -
           //- div(class='bg-white p-1') -
-        p(id='tableOp')
+        //- p(id='tableOp')
         div(class='bg-white w-full h-1/2 overflow-y-scroll' id='chatbox')
         form(class='flex' id='chatform')
-          input(class='border-x border-y flex-grow' type='text' name='message')
-          input(class='border-x border-y px-2 bg-white' type='submit' value='wyślij')
+          input(class='flex-grow' type='text' name='message')
+          input(type='submit' value='wyślij')

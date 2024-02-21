@@ -85,8 +85,8 @@ function switchTable(id) {
     for (let i = 0; i < currentTable.seats.length; i++) {
       players.children[i].textContent = currentTable.seats[i] || '-';
     }
-    document.getElementById('tableOp').textContent =
-      `Operator stołu: ${currentTable.operator}`;
+    // document.getElementById('tableOp').textContent =
+    //   `Operator stołu: ${currentTable.operator}`;
     chatbox.replaceChildren([]);
     url.hash = id;
     game.updateSize();
@@ -139,7 +139,9 @@ class Makao {
     this.updateSize();
 
     this.ctx.canvas.addEventListener('mouseup', (e) => {
-      if (e.button != 0) return;
+      const mySeat = currentTable.seats.indexOf(username);
+      const myTurn = mySeat != -1 && this.winner == -1 && mySeat == this.turn;
+      if (e.button != 0 || !myTurn) return;
 
       const x = e.offsetX;
       const y = e.offsetY;
@@ -243,32 +245,28 @@ class Makao {
       ctx.fillText(`do stracenia: ${this.toBlock}`, 0, 18);
     }
 
+    const playedCardsWidth =
+      this.width / 2 -
+      this.cardGap * ((this.playedCards.length - 1) / 2) +
+      this.cardGap * this.playedCards.length +
+      cardWidth * this.cardScale;
+    let skipPlayed = 0;
+    if (playedCardsWidth > this.width) skipPlayed = 10;
     this.playedCards.forEach((card, i) => {
-      this.drawCard(
-        this.width / 2 -
-          this.cardGap * ((this.playedCards.length - 1) / 2) +
-          this.cardGap * i,
-        this.height / 2,
-        card,
-      );
+      if (i >= skipPlayed)
+        this.drawCard(
+          this.width / 2 -
+            this.cardGap * ((this.playedCards.length - 1 - skipPlayed) / 2) +
+            this.cardGap * (i - skipPlayed),
+          this.height / 2,
+          card,
+        );
     });
 
     const mySeat = currentTable.seats.indexOf(username);
     const myTurn = mySeat != -1 && this.winner == -1 && mySeat == this.turn;
 
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    if (mySeat != -1) {
-      const blocked = this.blocks[mySeat];
-      ctx.fillText(
-        (myTurn ? '>' : '') +
-          username +
-          (blocked ? `[${blocked}]` : '') +
-          (myTurn ? '<' : ''),
-        this.width / 2,
-        this.height - 5 - cardHeight * this.cardScale,
-      );
-    }
 
     document.getElementById('passBtn').style.display = 'none';
     document.getElementById('drawBtn').style.display = 'none';
@@ -300,44 +298,53 @@ class Makao {
       ctx.fillText(
         text.join(' lub '),
         this.width / 2,
-        this.height - 28 - cardHeight * this.cardScale,
+        this.height - 41 - cardHeight * this.cardScale,
       );
     }
 
-    this.hand.forEach(({ card, playable }, i) => {
-      this.drawCard(
-        this.width / 2 -
-          this.cardGap * ((this.hand.length - 1) / 2) +
-          this.cardGap * i,
-        this.height - (cardHeight / 2) * this.cardScale,
-        card,
-        playable,
-      );
-    });
+    const bottomHand = mySeat != -1 ? mySeat : 0;
 
     this.hands.forEach((cardsAmount, i) => {
+      const name = currentTable.seats[i];
+      if (name) {
+        const blocked = this.blocks[i];
+        const textOffset = 5 + cardHeight * this.cardScale;
+        const textHeight =
+          i == bottomHand ? this.height - textOffset : textOffset;
+        if (i == bottomHand) ctx.textBaseline = 'bottom';
+        else ctx.textBaseline = 'top';
+        ctx.fillText(
+          (this.turn == i ? '>' : '') +
+            currentTable.seats[i] +
+            (blocked ? `[${blocked}]` : '') +
+            (this.turn == i ? '<' : ''),
+          this.width / 2,
+          textHeight,
+        );
+      }
+      const cardsOffset = (cardHeight * this.cardScale) / 2;
+      const cardsHeight =
+        i == bottomHand ? this.height - cardsOffset : cardsOffset;
       if (i != mySeat) {
-        const name = currentTable.seats[i];
-        if (name) {
-          const blocked = this.blocks[i];
-          ctx.textBaseline = 'top';
-          ctx.fillText(
-            (this.turn == i ? '>' : '') +
-              currentTable.seats[i] +
-              (blocked ? `[${blocked}]` : '') +
-              (this.turn == i ? '<' : ''),
-            this.width / 2,
-            5 + cardHeight * this.cardScale,
-          );
-        }
         for (let j = 0; j < cardsAmount; j++) {
           this.drawCard(
             this.width / 2 -
               this.cardGap * ((cardsAmount - 1) / 2) +
               this.cardGap * j,
-            (cardHeight * this.cardScale) / 2,
+            cardsHeight,
           );
         }
+      } else {
+        this.hand.forEach(({ card, playable }, i) => {
+          this.drawCard(
+            this.width / 2 -
+              this.cardGap * ((this.hand.length - 1) / 2) +
+              this.cardGap * i,
+            cardsHeight,
+            card,
+            playable,
+          );
+        });
       }
     });
   }
@@ -414,6 +421,7 @@ socket.addEventListener('message', (e) => {
     case 'tableLeave': {
       const table = tables.get(msg.id);
       table.leave(msg.user);
+      users.get(msg.user).table = undefined;
       if (msg.user == username) {
         switchTable(0);
       }
@@ -445,10 +453,10 @@ socket.addEventListener('message', (e) => {
     case 'tableOperator': {
       const table = tables.get(msg.id);
       table.operator = msg.user;
-      if (table === currentTable) {
-        document.getElementById('table-op').textContent =
-          `Operator stołu: ${msg.user}`;
-      }
+      // if (table === currentTable) {
+      //   document.getElementById('tableOp').textContent =
+      //     `Operator stołu: ${msg.user}`;
+      // }
       break;
     }
     case 'tableDestroyed': {
