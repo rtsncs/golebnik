@@ -7,7 +7,26 @@ body {
     background-color: #fff;
     color: #000;
 
-    /* @apply px-3 sm:px-14 lg:px-32; */
-    /* @apply max-w-screen-2xl; */
-    /* @apply mx-auto; */
+}
+
+.page-padding {
+    @apply px-3 sm:px-14 lg:px-32;
+    @apply max-w-screen-2xl;
+    @apply mx-auto;
+}
+
+button, input[type=submit], .button {
+    @apply bg-white border-x border-y px-2 hover:bg-gray-100 cursor-pointer;
+}
+
+.canvas-button {
+    @apply bg-green-700;
+}
+
+.canvas-button:hover {
+    @apply bg-green-600;
+}
+
+input[type=text], input[type=password] {
+    @apply bg-white border-x border-y px-2;
 }

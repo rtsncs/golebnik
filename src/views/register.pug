@@ -3,9 +3,8 @@ extends layout.pug
 block content
   form(class='flex flex-col items-center gap-2' method='post' action='/register')
     div
-      label nazwa:
-        input(class='ml-5 border-x border-y' type='text' name='username')
-    div
-      label hasło:
-        input(class='ml-5 border-x border-y' type='password' name='password')
-    input(class='border-x border-y px-2' type='submit' value='zarejestruj')
+      label(class='flex gap-2 mb-2') nazwa:
+        input(class='ml-auto' type='text' name='username')
+      label(class='flex gap-2') hasło:
+        input(class='ml-auto' type='password' name='password')
+    input(type='submit' value='zarejestruj')
