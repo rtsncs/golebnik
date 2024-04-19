@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!--
 Vector Playing Card Library 
 VERSION 3.2 - RELEASED 6/27/2020
@@ -13,8 +14,6 @@ Alternate Joker by John Merrill
 john@delirus.net
 Colored version of alternate Joker by Chris Aguilar
 -->
-
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg
    width="823.28998mm"
    height="441.41455mm"
