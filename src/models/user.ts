@@ -21,6 +21,8 @@ export class User {
 }
 
 export async function createUser(username: string, password: string) {
+  if (username.length < 3 || username.length > 16) throw 'InvalidName';
+  if (password.length < 8) throw 'InvalidPassword';
   const hash = await argon2.hash(password);
   try {
     const result = await query(
@@ -30,6 +32,7 @@ export async function createUser(username: string, password: string) {
     return new User(result.rows[0].id, username, hash, result.rows[0].created);
   } catch (e) {
     console.log(e);
+    throw 'NameTaken';
   }
 }
 

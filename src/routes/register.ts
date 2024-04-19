@@ -7,15 +7,21 @@ interface RegisterForm {
 }
 
 export default function (router: Router) {
-  //TODO: validate data
   router.get('/register', (req: Request, res: Response) => {
-    res.render('register', { title: 'rejestracja', user: req.session });
+    res.render('register', {
+      title: 'rejestracja',
+      user: req.session,
+      error: req.query.error,
+    });
   });
-  router.post('/register', (req: Request, res: Response) => {
+  router.post('/register', async (req: Request, res: Response) => {
     const formData: RegisterForm = req.body;
-    createUser(formData.username, formData.password).then(() =>
-      res.redirect('/'),
-    );
+    try {
+      await createUser(formData.username, formData.password);
+      res.redirect(303, '/');
+    } catch (e) {
+      res.redirect(303, `/register?error=${e}`);
+    }
   });
   return router;
 }

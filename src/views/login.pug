@@ -1,11 +1,14 @@
 extends layout.pug
 
 block content
+  if error !== undefined
+    div(class='w-100 flex justify-center bg-red-600 text-white mb-2') nieprawidłowa nazwa lub hasło
+
   form(class='flex flex-col items-center gap-2' method='post' action='/login?callback=' + callback)
     div
       label(class='flex gap-2 mb-2') nazwa:
-        input(class='ml-auto' type='text' name='username')
+        input(class='ml-auto' type='text' name='username' required=true)
       label(class='flex gap-2') hasło:
-        input(class='ml-auto' type='password' name='password')
+        input(class='ml-auto' type='password' name='password' required=true)
     input(type='submit' value='zaloguj')
     a(href='/register' class='button') zarejestruj
